@@ -6,9 +6,7 @@ http://gmt.soest.hawaii.edu/gmt/html/GMT_Docs.html#x1-720004.15
 
 import math
 
-from collections import namedtuple
 import re
-from asq.initiators import query
 
 __author__ = 'rjs'
 
@@ -57,14 +55,11 @@ def load(file):
                 preamble.append(cpy_comment_match.group(1))
 
 
-
-
-
-
 def save(file, cpt):
     '''
     Save a ColourPaletteTable to a file
     '''
+
 
 def lerp(x1, y1, x2, y2, x):
     '''Linear interpolation'''
@@ -72,6 +67,7 @@ def lerp(x1, y1, x2, y2, x):
     c = y1 - m * x1
     y = m * x + c
     return y
+
 
 class Boundary(object):
     '''The boundary of an interval comprising a value and a color.'''
@@ -108,10 +104,6 @@ class Interval(object):
         return result
 
         
-        
-        
-
-
 class ColorPaletteTable(object):
     '''A function to map from values to colours.
 

@@ -64,7 +64,7 @@ interval_regexes = []
 for type1, type2 in interval_formats:
     color1_pattern = r'(?P<color1>{type1})'.format(type1=substitutions[type1])
     color2_pattern = r'(?P<color2>{type2})'.format(type2=substitutions[type2])
-    interval_pattern = r'\s*{value1}\s+{color1}\s+{value2}\s+{color2}(\s+{annotation})?(\s+{label})?'.format(
+    interval_pattern = r'\s*{value1}\s+{color1}\s+{value2}\s+{color2}(\s+{annotation})?(\s+{label})?\s*$'.format(
                             value1=value1_pattern,
                             value2=value2_pattern,
                             color1=color1_pattern,
@@ -86,7 +86,7 @@ category_formats = set([type1 for type1, type2 in interval_formats])
 category_regexes = []
 for type in category_formats:
     color_pattern = r'(?P<color>{type})'.format(type=substitutions[type])
-    category_pattern = r'(?P<category>[FBN]){color}'.format(color=color_pattern)
+    category_pattern = r'\s*(?P<category>[FBN])\s+{color}\s*$'.format(color=color_pattern)
     category_regex = re.compile(category_pattern)
     category_regexes.append(category_regex)
 
@@ -157,7 +157,7 @@ class CptReader(object):
                 category_code = category_match.group('category')
 
                 color_reader = getattr(self, '_read_' + type)
-                color = color_reader(interval_match.group(color), self.color_model)
+                color = color_reader(category_match.group('color'), self.color_model)
 
                 category = CategoryNode(category_code, color)
                 self.statements.append(category)
@@ -218,7 +218,7 @@ class CptReader(object):
         with open(self.filename) as f:
             for line_num, line in enumerate(f):
                 if not self._read_line(line):
-                    message = "Syntax error in CPT file at line {0}".format(line_num)
+                    message = "Syntax error in CPT file at line {0}".format(line_num + 1)
                     logger.error(message)
                     raise CptReaderError(message)
 
