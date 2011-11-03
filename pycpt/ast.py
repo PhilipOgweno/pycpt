@@ -15,10 +15,12 @@ CategoryNode = namedtuple('CategoryNode', ['category', 'color'])
 
 class IntervalSpecNode(object):
 
-    def __init__(self, lower_z, lower_color, upper_z, upper_color, annotation=None, label=None):
+    def __init__(self, lower_z, lower_color, upper_z, upper_color,
+                 annotation=None, label=None, interpolation_color_model='rgb'):
         self.lower_z = lower_z
         self.lower_color = lower_color
         self.upper_z = upper_z
         self.upper_color = upper_color
         self.annotation = annotation
         self.label = label
+        self.interpolation_color_model = interpolation_color_model

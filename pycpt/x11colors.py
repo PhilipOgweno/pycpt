@@ -21,7 +21,7 @@ def _load_colors():
             fields = line.split()
             if len(fields) == 4:
                 try:
-                    color = RGBColor(int(fields[0]), int(fields[1]), int(fields[2]))
+                    color = (int(fields[0]), int(fields[1]), int(fields[2]))
                 except ValueError:
                     log.warning('Could not read valid color from "{0}"'.format(line))
                     continue

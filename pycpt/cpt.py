@@ -7,6 +7,7 @@ http://gmt.soest.hawaii.edu/gmt/html/GMT_Docs.html#x1-720004.15
 import math
 
 import re
+from pycpt.colors import RGBColor
 
 __author__ = 'rjs'
 
@@ -17,49 +18,6 @@ ANNOTATE_NEITHER = 0
 ANNOTATE_LOWER = 1
 ANNOTATE_UPPER = 2
 ANNOTATE_BOTH  = 3
-
-float_pattern = r'[-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?'
-byte_pattern = r'\d{1,3}'
-named_color_pattern = r'\w+'
-
-cpt_comment_regex = re.compile(r'#\s*(.)')
-cpt_color_model_regex = re.compile(r'#\s*COLOU?R_MODEL = (RGB|HSV|CMYK)')
-
-color_pattern = r'({byte})\s+({byte})\s+({byte})(\s+({byte}))?' # A 3- or 4-tuple of integers
-
-interval_pattern = r'({float})\s+'
-
-interval_regex = re.compile()
-
-
-
-def load(file):
-    '''
-    Load a ColourPaletteTable from a CPT file.
-
-    The format of CPT files is described at http://gmt.soest.hawaii.edu/gmt/html/GMT_Docs.html#x1-720004.15
-    '''
-    collecting_preamble = True
-    preamble = []
-    for line in file:
-        stripped_line = line.strip()
-
-        color_model_match = cpt_color_model_regex.match(stripped_line)
-        if color_model_match:
-            color_model = color_model_match.group(1)
-            continue
-
-        cpt_comment_match = cpt_comment_regex.match(stripped_line)
-        if cpt_comment_match:
-            if collecting_preamble:
-                preamble.append(cpy_comment_match.group(1))
-
-
-def save(file, cpt):
-    '''
-    Save a ColourPaletteTable to a file
-    '''
-
 
 def lerp(x1, y1, x2, y2, x):
     '''Linear interpolation'''
@@ -75,20 +33,22 @@ class Boundary(object):
         self.value = value
         self.color = color
 
+
 class Interval(object):
     '''
     A coloured interval with defined by two values with corresponding colours.
     '''
-    def __init__(self, lower_boundary, upper_boundary, annotate=ANNOTATE_NEITHER, label=None):
-        if lower_boundary > upper_boundary:
+    def __init__(self, lower_boundary, upper_boundary, annotate=ANNOTATE_NEITHER, label=None, interpolation_color_model='rgb'):
+        if lower_boundary.value > upper_boundary.value:
             raise ValueError("lower_boundary must me lower than upper_boundary")
         self.lower_boundary = lower_boundary
         self.upper_boundary = upper_boundary
         self.annotate = annotate
         self.label = label
+        self.interpolation_color_model = interpolation_color_model
 
     def interpolate(self, value):
-        if not (self.lower_boundary.value <= value <= upper_boundary.value):
+        if not (self.lower_boundary.value <= value <= self.upper_boundary.value):
             message = "value {0} not in range {1} to {1}".format(value,
                           self.lower_boundary.value, self.upper_boundary.value)
             raise ValueError(message)
@@ -111,37 +71,64 @@ class ColorPaletteTable(object):
     may overlap and the first interval to found to contain a value 'wins'
     '''
 
-    def __init__(self, intervals, background_color, foreground_color, nan_color):
+    def __init__(self, intervals=None, background_color=None,
+                 foreground_color=None, nan_color=None, color_model='rgb',
+                 description=''):
         '''
-        Create a ColourPaletteTable from a sequence of intervals.
+        Create a ColourPaletteTable.
+
+        Args:
+            intervals: A iterable of Intervals.
+
+            background_color: The color to be used for values less than the
+                lowest interval. Defaults to black.
+
+            foreground_color: The color to be used for values greater than the
+                highest interval. Defaults to white.
+
+            nan_color: The color to be used for NaN values. Defaults to gray.
+
+            color_model: One of 'rgb', 'hsv' or 'cmyk'.  The color model in
+                which interpolated values are to be returned. Defauts to 'rgb'
+
+            description: An optional description string.
         '''
-        self.intervals = intervals
-        self.background_color = background_color
-        self.foreground_color = foreground_color
-        self.nan_color = nan_color
-        self.description = ""
+        self.intervals = list(intervals) if intervals is not None else []
+        self.background_color = background_color if background_color is not None else RGBColor(0, 0, 0)
+        self.foreground_color = foreground_color if foreground_color is not None else RGBColor(255, 255, 255)
+        self.nan_color = nan_color if nan_color is not None else RGBColor(127, 127, 127)
+        self.color_model = color_model
+        self.description = description
 
     def __len__(self):
         return len(self.intervals)
 
-    def __call__(self, value):
+    def _interpolate(self, value):
         if math.isnan(value):
             return self.nan_color
-
         min_value = None
         max_value = None
-
         for interval in self.intervals:
             if interval.lower_boundary <= value <= interval.upper_boundary:
                 return interval.interpolate(value)
             min_value = min(min_value, interval.lower_boundary)
             max_value = max(max_value, interval.upper_boundary)
-
         if value < min_value:
             return self.background_color
-
         assert value > max_value
         return self.foreground_color
+
+    def interpolate(self, value, color_model=None):
+        if color_model is None:
+            color_model = self.color_model
+        color = self._interpolate(value)
+        return convert_color(color, color_model)
+
+    def __call__(self, value):
+        return self.interpolate(value)
+
+    def append(self, interval):
+        self.intervals.append(interval)
 
 
         

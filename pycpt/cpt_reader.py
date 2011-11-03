@@ -1,14 +1,13 @@
 import logging
 import re
+from pycpt.build_visitor import BuildVisitor
 import x11colors
 
 logger = logging.getLogger('pycpt.cpt_reader')
 
-from pycpt.ast import CommentNode, CategoryNode, RGBColorNode, HSVColorNode, CMYKColorNode, IntervalSpecNode
+from pycpt.ast import (CommentNode, CategoryNode, RGBColorNode, HSVColorNode,
+                       CMYKColorNode, IntervalSpecNode)
 
-comment_pattern = r'^\s*\#\s*(.*)'
-color_model_pattern = r'^\s*\#\s*COLOR_MODEL\s*=\s*(\+?)\s*(HSV|RGB|CMYK)'
-int_pattern = r'\d+'
 float_pattern = r'([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)'
 hex_rgb_pattern = r'\#([0-9A-Fa-f]{6})\b'
 label_pattern = r';\s*(?P<label>.+)'
@@ -27,16 +26,8 @@ substitutions = { 'float' : float_pattern,
                   'hexrgb' : hex_rgb_pattern,
                   'annotation' : annotation_pattern }
 
-comment_regex = re.compile(comment_pattern)
-color_model_regex = re.compile(color_model_pattern)
-
-# The following combinations are ambiguous and are not accepted
-# r'\s*{float}\s+{gray}\s+{float}\s+{triple}' - 6 floats
-# r'\s*{float}\s+{triple}\s+{float}\s+{gray}' - 6 floats
-# r'\s*{float}\s+{gray}\s+{float}\s+{cmyk}'   - 7 floats
-# r'\s*{float}\s+{cmyk}\s+{float}\s+{gray}'   - 7 floats
-# r'\s*{float}\s+{triple}\s+{float}\s+{cmyk}' - 9 floats
-# r'\s*{float}\s+{cmyk}\s+{float}\s+{triple}' - 9 floats
+comment_regex = re.compile(r'^\s*\#\s*(.*)')
+color_model_regex = re.compile(r'^\s*\#\s*COLOR_MODEL\s*=\s*(\+?)\s*(HSV|RGB|CMYK)')
 
 interval_formats = [ ('triple', 'triple'),
                      ('triple', 'hexrgb'),
@@ -57,38 +48,37 @@ interval_formats = [ ('triple', 'triple'),
                      ('name',   'cmyk'),
                      ('name',   'gray') ]
 
-value1_pattern = r'(?P<value1>{float})'.format(float=float_pattern)
-value2_pattern = r'(?P<value2>{float})'.format(float=float_pattern)
+def initialise_interval_regexes(interval_formats, substitutions):
+    base_substitution = { 'value1'     : r'(?P<value1>{float})'.format(**substitutions),
+                          'value2'     : r'(?P<value2>{float})'.format(**substitutions),
+                          'annotation' : r'(?P<annotation>[ULB])',
+                          'label'      : r';\s*(?P<label>.+)' }
+    interval_regexes = []
+    for type1, type2 in interval_formats:
+        specific_substitutions = { 'color1' : r'(?P<color1>{type1})'.format(type1=substitutions[type1]),
+                                   'color2' : r'(?P<color2>{type2})'.format(type2=substitutions[type2]) }
+        specific_substitutions.update(base_substitution)
+        interval_pattern = r'\s*{value1}\s+{color1}\s+{value2}\s+{color2}(\s+{annotation})?(\s+{label})?\s*$'.format(**specific_substitutions)
+        interval_regex = re.compile(interval_pattern)
+        interval_regexes.append(interval_regex)
+    return interval_regexes
 
-interval_regexes = []
-for type1, type2 in interval_formats:
-    color1_pattern = r'(?P<color1>{type1})'.format(type1=substitutions[type1])
-    color2_pattern = r'(?P<color2>{type2})'.format(type2=substitutions[type2])
-    interval_pattern = r'\s*{value1}\s+{color1}\s+{value2}\s+{color2}(\s+{annotation})?(\s+{label})?\s*$'.format(
-                            value1=value1_pattern,
-                            value2=value2_pattern,
-                            color1=color1_pattern,
-                            color2=color2_pattern,
-                            annotation=annotation_pattern,
-                            label=label_pattern)
-#    interval_pattern = r'\s*{value1}\s+{color1}\s+{value2}\s+{color2}'.format(
-#                            value1=value1_pattern,
-#                            value2=value2_pattern,
-#                            color1=color1_pattern,
-#                            color2=color2_pattern,
-#                            annotation=annotation_pattern,
-#                            label=label_pattern)
-    interval_regex = re.compile(interval_pattern)
-    interval_regexes.append(interval_regex)
+
+def initialise_category_regexes(category_formats, substitutions):
+    category_regexes = []
+    for type in category_formats:
+        color_pattern = r'(?P<color>{type})'.format(type=substitutions[type])
+        category_pattern = r'\s*(?P<category>[FBN])\s+{color}\s*$'.format(
+            color=color_pattern)
+        category_regex = re.compile(category_pattern)
+        category_regexes.append(category_regex)
+    return category_regexes
+
+interval_regexes = initialise_interval_regexes(interval_formats, substitutions)
 
 category_formats = set([type1 for type1, type2 in interval_formats])
 
-category_regexes = []
-for type in category_formats:
-    color_pattern = r'(?P<color>{type})'.format(type=substitutions[type])
-    category_pattern = r'\s*(?P<category>[FBN])\s+{color}\s*$'.format(color=color_pattern)
-    category_regex = re.compile(category_pattern)
-    category_regexes.append(category_regex)
+category_regexes = initialise_category_regexes(category_formats, substitutions)
 
 permitted_color_models = set(['rgb', 'hsv', 'cmyk'])
 
@@ -114,7 +104,7 @@ class CptReader(object):
             if color_model not in permitted_color_models:
                 message = "Unknown color model {0}".format(color_model)
                 logging.warning(message)
-                raise UnknownColorModel(message)
+                raise CptReaderError(message)
             self.color_model = color_model
             if color_model_match.group(1) == '+':
                 self.interpolation_model = color_model
@@ -145,7 +135,8 @@ class CptReader(object):
                 annotation = interval_match.group('annotation')
                 label = interval_match.group('label')
 
-                interval = IntervalSpecNode(value1, color1, value2, color2, annotation, label)
+                interval = IntervalSpecNode(value1, color1, value2, color2,
+                                            annotation, label, self.interpolation_model)
                 self.statements.append(interval)
                 return True
         return False
@@ -205,8 +196,7 @@ class CptReader(object):
     @staticmethod
     def _read_name(s, color_model):
         color = x11colors.named_color(s)
-        # TODO: Am returning an RGBColor here rather than an RGBColorNode
-        return color
+        return RGBColorNode(*color)
     
     def _read_line(self, line):
         for reader in self.readers:
@@ -222,11 +212,21 @@ class CptReader(object):
                     logger.error(message)
                     raise CptReaderError(message)
 
+    def build(self):
+        '''Build a ColourPaletteTable'''
+        visitor = BuildVisitor()
+        for statement in self.statements:
+            visitor.visit(statement)
+        return visitor.cpt
+
 
 if __name__ == '__main__':
-    cpt = CptReader('/home/rjs/dev/pycpt/cpts/test.cpt')
-    cpt.read()
+    reader = CptReader('/home/rjs/dev/pycpt/cpts/test.cpt')
+    reader.read()
+    cpt = reader.build()
     pass
+
+
 
 
 

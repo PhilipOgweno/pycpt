@@ -3,6 +3,8 @@
     <words>
       <w>cmyk</w>
       <w>hexrgb</w>
+      <w>lerp</w>
+      <w>regexes</w>
     </words>
   </dictionary>
 </component>
