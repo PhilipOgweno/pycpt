@@ -8,28 +8,28 @@ logger = logging.getLogger('pycpt.cpt_reader')
 from pycpt.ast import (CommentNode, CategoryNode, RGBColorNode, HSVColorNode,
                        CMYKColorNode, IntervalSpecNode)
 
-float_pattern = r'([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)'
-hex_rgb_pattern = r'\#([0-9A-Fa-f]{6})\b'
-label_pattern = r';\s*(?P<label>.+)'
-triple_pattern = r'{float}\s+{float}\s+{float}'.format(float=float_pattern)
-cmyk_pattern = r'{float}\s+{float}\s+{float}\s+{float}'.format(float=float_pattern)
-gray_pattern = float_pattern
-name_pattern = r'[A-Za-z]\w+'
-annotation_pattern = r'(?P<annotation>[ULB])'
+FLOAT_PATTERN = r'([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)'
+HEX_RGB_PATTERN = r'\#([0-9A-Fa-f]{6})\b'
+LABEL_PATTERN = r';\s*(?P<label>.+)'
+TRIPLE_PATTERN = r'{float}\s+{float}\s+{float}'.format(float=FLOAT_PATTERN)
+CMYK_PATTERN = r'{float}\s+{float}\s+{float}\s+{float}'.format(float=FLOAT_PATTERN)
+GRAY_PATTERN = FLOAT_PATTERN
+NAME_PATTERN = r'[A-Za-z]\w+'
+ANNOTATION_PATTERN = r'(?P<annotation>[ULB])'
 
-substitutions = { 'float' : float_pattern,
-                  'triple' : triple_pattern,
-                  'cmyk' : cmyk_pattern,
-                  'gray' : gray_pattern,
-                  'name' : name_pattern,
-                  'label' : label_pattern,
-                  'hexrgb' : hex_rgb_pattern,
-                  'annotation' : annotation_pattern }
+SUBSTITUTIONS = { 'float' : FLOAT_PATTERN,
+                  'triple' : TRIPLE_PATTERN,
+                  'cmyk' : CMYK_PATTERN,
+                  'gray' : GRAY_PATTERN,
+                  'name' : NAME_PATTERN,
+                  'label' : LABEL_PATTERN,
+                  'hexrgb' : HEX_RGB_PATTERN,
+                  'annotation' : ANNOTATION_PATTERN }
 
-comment_regex = re.compile(r'^\s*\#\s*(.*)')
-color_model_regex = re.compile(r'^\s*\#\s*COLOR_MODEL\s*=\s*(\+?)\s*(HSV|RGB|CMYK)')
+COMMENT_REGEX = re.compile(r'^\s*\#\s*(.*)')
+COLOR_MODEL_REGEX = re.compile(r'^\s*\#\s*COLOR_MODEL\s*=\s*(\+?)\s*(HSV|RGB|CMYK)')
 
-interval_formats = [ ('triple', 'triple'),
+INTERVAL_FORMATS = [ ('triple', 'triple'),
                      ('triple', 'hexrgb'),
                      ('triple', 'float'),
                      ('cmyk',   'cmyk'),
@@ -74,13 +74,13 @@ def initialise_category_regexes(category_formats, substitutions):
         category_regexes.append(category_regex)
     return category_regexes
 
-interval_regexes = initialise_interval_regexes(interval_formats, substitutions)
+INTERVAL_REGEXES = initialise_interval_regexes(INTERVAL_FORMATS, SUBSTITUTIONS)
 
-category_formats = set([type1 for type1, type2 in interval_formats])
+CATEGORY_FORMATS = set([type1 for type1, type2 in INTERVAL_FORMATS])
 
-category_regexes = initialise_category_regexes(category_formats, substitutions)
+CATEGORY_REGEXES = initialise_category_regexes(CATEGORY_FORMATS, SUBSTITUTIONS)
 
-permitted_color_models = set(['rgb', 'hsv', 'cmyk'])
+PERMITTED_COLOR_MODELS = set(['rgb', 'hsv', 'cmyk'])
 
 class CptReaderError(Exception):
     pass
@@ -98,10 +98,10 @@ class CptReader(object):
                          self._read_category ]
 
     def _read_color_model(self, line):
-        color_model_match = color_model_regex.match(line) # TODO Case-insensitive
+        color_model_match = COLOR_MODEL_REGEX.match(line) # TODO Case-insensitive
         if color_model_match:
             color_model = color_model_match.group(2).lower()
-            if color_model not in permitted_color_models:
+            if color_model not in PERMITTED_COLOR_MODELS:
                 message = "Unknown color model {0}".format(color_model)
                 logging.warning(message)
                 raise CptReaderError(message)
@@ -112,7 +112,7 @@ class CptReader(object):
         return False
 
     def _read_comment(self, line):
-        comment_match = comment_regex.match(line)
+        comment_match = COMMENT_REGEX.match(line)
         if comment_match:
             comment = CommentNode(comment_match.group(1))
             self.statements.append(comment)
@@ -120,7 +120,7 @@ class CptReader(object):
         return False
 
     def _read_interval(self, line):
-        for ((type1, type2), regex) in zip(interval_formats, interval_regexes):
+        for ((type1, type2), regex) in zip(INTERVAL_FORMATS, INTERVAL_REGEXES):
             interval_match = regex.match(line)
             if interval_match:
                 value1 = float(interval_match.group('value1'))
@@ -142,7 +142,7 @@ class CptReader(object):
         return False
 
     def _read_category(self, line):
-        for type, regex in zip(category_formats, category_regexes):
+        for type, regex in zip(CATEGORY_FORMATS, CATEGORY_REGEXES):
             category_match = regex.match(line)
             if category_match:
                 category_code = category_match.group('category')
