@@ -1,0 +1,1 @@
+Color Palette Tables provide a concise and very flexibly way to specify the mapping between a variable and a color.  PyCPT is a Python package providing an API for loading, saving, creating, modifying and using CPT files.
